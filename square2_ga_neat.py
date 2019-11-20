@@ -99,11 +99,6 @@ class Fitness:
         self.bias = 1
 
         self.listSquares = []
-        # 0 weights
-        # 1 rect
-        # 2 alive
-        # 3 color
-        # 4 distance
 
         self.fitnessResults = {}
         self.hasSquaresAlive = True
@@ -134,6 +129,11 @@ class Fitness:
         kill_line = pygame.Rect(0, 0, 3, 300)
 
         for i in range(0, len(self.population)):
+            # 0 weights
+            # 1 rect
+            # 2 alive
+            # 3 color
+            # 4 distance
             square = [self.population[i], pygame.Rect(pos_init[0], pos_init[1], SQUARE_WIDTH, SQUARE_HEIGHT), True,
                       (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)), 0]
 
@@ -340,7 +340,10 @@ class GeneticAlgorithm:
         self.bestDistance = 0
 
     def start(self):
-        self.currentPopulation = self.initialPopulation(self.populationSize, 4, 2, 4)
+        input_size = 4
+        hidden_size = 6
+        output_size = 4
+        self.currentPopulation = self.initialPopulation(self.populationSize, input_size, hidden_size, output_size)
 
         for i in range(0, self.generations):
             print('generation: ', i)
