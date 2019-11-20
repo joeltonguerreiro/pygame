@@ -12,7 +12,7 @@ RED = pygame.Color(255, 0, 0)
 GREEN = pygame.Color(0, 255, 0)
 WIDTH, HEIGHT = 600, 300
 
-SQUARE_WIDTH, SQUARE_HEIGHT = 5, 5
+SQUARE_WIDTH, SQUARE_HEIGHT = 8, 8
 WALL_WIDTH, WALL_HEIGHT = 20, 20
 
 velocity = 0.16
@@ -35,7 +35,7 @@ levels = [
     "B                            B",
     "B                            B",
     "B                            B",
-    "B             GGG            B",
+    "B        E    GGG            B",
     "B                            B",
     "B                   GG       B",
     "B                            B",
@@ -81,14 +81,17 @@ for row in levels:
     if left >= WIDTH:
         left = 0
 
-square = [pygame.Rect(pos_init[0], pos_init[1], SQUARE_WIDTH, SQUARE_HEIGHT), 1, max_height_jumping]
+square = [pygame.Rect(pos_init[0], pos_init[1], SQUARE_WIDTH, SQUARE_HEIGHT), 1, max_height_jumping, 0]
 # rect
 # jumping 1, 0
 # jumping_height
+# grabbed
 
 currentDistance = 300
 closerGroundDistance = 300
 closerGround = None
+grab_position = 0, 0
+drag_position = 0, 0
 
 while True:
 
@@ -96,6 +99,35 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+
+        # mouse button down
+        if event.type == 5:
+            print('event', event)
+            grab_position = event.pos
+
+            if square[0].collidepoint(grab_position[0], grab_position[1]):
+                square[3] = 1
+                square[0].inflate_ip(+3, +3)
+
+            drag_position = event.pos
+
+        # mouse button up
+        if event.type == 6:
+            print('event', event)
+
+            if square[3] == 1:
+                square[0].inflate_ip(-3, -3)
+
+            grab_position = 0, 0
+            square[3] = 0
+            square[1] = 1
+            closerGroundDistance = 300
+            closerGround = None
+
+        # mouse motion
+        if event.type == 4 and square[3] == 1:
+            print('event', event)
+            drag_position = event.pos
 
     keys = pygame.key.get_pressed()
 
@@ -157,7 +189,6 @@ while True:
 
                 velocity_y = 0
 
-
             # se o estado for 1 (pulando) aplica a gravidade
             if square[1] == 1:
                 print('gravidade')
@@ -169,7 +200,13 @@ while True:
             square[0].top = ground.bottom
             velocity_y = 0
 
-    square[0].move_ip(velocity_x, velocity_y)
+    # not dragged
+    if square[3] == 0:
+        square[0].move_ip(velocity_x, velocity_y)
+
+    # dragged
+    if square[3] == 1:
+        square[0].center = drag_position
 
     screen.fill(BLACK)
 
@@ -177,12 +214,14 @@ while True:
         pygame.draw.line(screen, RED, (square[0].centerx, square[0].centery),
                          (closerGround.centerx, closerGround.centery), 1)
 
-    pygame.draw.rect(screen, GREEN, square[0])
-
     for border in borders:
         pygame.draw.rect(screen, RED, border)
 
     for ground in grounds:
         pygame.draw.rect(screen, WHITE, ground)
+
+    pygame.draw.rect(screen, GREEN, exit)
+
+    pygame.draw.rect(screen, GREEN, square[0])
 
     pygame.display.flip()
