@@ -17,12 +17,12 @@ WIDTH, HEIGHT = 600, 300
 SQUARE_WIDTH, SQUARE_HEIGHT = 8, 8
 WALL_WIDTH, WALL_HEIGHT = 20, 20
 
-velocity = 0.12
-gravity = 0.05
-velocity_jumping = 0.08
+velocity = 0.16
+gravity = 0.08
+velocity_jumping = 0.18
 max_height_jumping = 70
 
-kill_line_velocity = 0.18
+kill_line_velocity = 0.25
 
 pygame.init()
 
@@ -39,14 +39,14 @@ levels = [
     "B                            B",
     "B                            B",
     "B                            B",
-    "B             GGG            B",
     "B                            B",
-    "B                   GG       B",
     "B                            B",
-    "B             GGGGGG         B",
-    "B     I                      B",
+    "B                            B",
+    "B                            B",
+    "B                            B",
+    "B             I              B",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
-    "B                            B",
+    "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 ]
 
@@ -58,6 +58,10 @@ borders = []
 grounds = []
 exit = 0
 pos_init = (0, 0)
+
+rasteira = pygame.image.load('rasteira.png')
+rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
+rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
 
 for row in levels:
     for col in row:
@@ -97,8 +101,9 @@ class Square:
         self.max_jumping_height = 60
         self.alive = True
         self.time_alive = 0
-        self.jump_cooldown = 300
+        self.jump_cooldown = 1000
         self.last_jump_time = 0
+        self.count_jumpings = 0
 
     def is_jumping(self):
         return self.jumping is True
@@ -108,11 +113,14 @@ class Square:
 
     def can_jumping(self):
         now = int(round(time.time() * 1000))
-        print('can_jumping', now - self.last_jump_time)
-        if self.jumping is True or \
-                ((now - self.last_jump_time) >= self.jump_cooldown and
-                 self.jumping_height < self.max_jumping_height):
+        # print('can_jumping', now - self.last_jump_time)
+
+        if self.jumping is False and (now - self.last_jump_time) >= self.jump_cooldown:
             return True
+
+        if self.jumping is True and self.jumping_height < self.max_jumping_height:
+            return True
+
         return False
 
         '''if self.jumping_height < self.max_jumping_height:
@@ -121,6 +129,9 @@ class Square:
 
     def jump(self):
         self.last_jump_time = int(round(time.time() * 1000))
+
+    def increments_jump(self):
+        self.count_jumpings += 1
 
 
 neural_network = NeuralNetwork()
@@ -160,7 +171,12 @@ class Fitness:
 
         kill_line_a = pygame.Rect(0, 200, 3, 60)
         kill_line_b = pygame.Rect(600, 200, 3, 60)
-        # kill_ninja = pygame.Rect()
+
+        rasteira_rect = rasteira_resized.get_rect()
+        rasteira_rect.center = (0, 220)
+
+        rasteira_rect_b = rasteira_resized_b.get_rect()
+        rasteira_rect_b.center = (600, 220)
 
         start_time = int(round(time.time() * 1000))
 
@@ -181,6 +197,12 @@ class Fitness:
 
             if kill_line_b.centerx <= 0:
                 kill_line_b.centerx = 600
+
+            if rasteira_rect.centerx >= 600:
+                rasteira_rect.centerx = 0
+
+            if rasteira_rect_b.centerx <= 0:
+                rasteira_rect_b.centerx = 600
 
             screen.fill(BLACK)
 
@@ -230,6 +252,15 @@ class Fitness:
                         # print('event', event)
                         drag_position = event.pos
 
+                    if event.type == pygame.KEYUP:
+                        if event.key == pygame.K_SPACE:
+                            for square in self.list_squares:
+                                square.alive = False
+                                die_time = int(round(time.time() * 1000))
+                                square.time_alive = die_time - start_time
+                                self.has_squares_alive = False
+                            #continue
+
                 distance_top = distance_bottom = distance_right = distance_left = 600
 
                 closer_right = closer_bottom = closer_left = closer_top = None
@@ -263,6 +294,39 @@ class Fitness:
                                 distance_left = abs(square.left - ground.right)
                                 closer_left = ground
 
+                for kill_line in [kill_line_a, kill_line_b]:
+
+                    square = self.list_squares[index].rect
+
+                    # o quadrado é menor que as paredes, então ele sempre estará
+                    # contido em uma parede, os testes abaixo verificam esse caso
+
+                    if square.left > kill_line.left and square.right < kill_line.right:
+                        if square.top > kill_line.bottom:
+                            if abs(square.top - kill_line.bottom) <= distance_top:
+                                distance_top = abs(square.top - kill_line.bottom)
+                                closer_top = kill_line
+
+                        if square.bottom < kill_line.top:
+                            if abs(square.bottom - kill_line.top) <= distance_bottom:
+                                distance_bottom = abs(square.bottom - kill_line.top)
+                                closer_bottom = kill_line
+
+                    if square.bottom < kill_line.top:
+                        self.list_squares[index].increments_jump()
+
+                    if square.top > kill_line.top and square.bottom < kill_line.bottom:
+                        if square.right < kill_line.left:
+                            if abs(square.right - kill_line.left) <= distance_right:
+                                distance_right = abs(square.right - kill_line.left)
+                                closer_right = kill_line
+
+                        if square.left > kill_line.right:
+                            if abs(square.left - kill_line.right) <= distance_left:
+                                distance_left = abs(square.left - kill_line.right)
+                                closer_left = kill_line
+
+                # if self.list_squares[index].is_grabbed() is False:
                 input_array = distance_right, distance_bottom, distance_left, distance_top
 
                 output = neural_network.feed_forward(self.list_squares[index].weights, input_array)
@@ -298,6 +362,7 @@ class Fitness:
                         closer_ground = None
                         self.list_squares[index].jumping = True
                         self.list_squares[index].jumping_height += abs((velocity_jumping * dt))
+
 
                 for ground in grounds:
 
@@ -404,7 +469,8 @@ class Fitness:
                 # if self.list_squares[index][1].colliderect(exit):
                 # results.incrementWinners(1)
 
-                self.list_squares[index].rect.move_ip(pos_x, pos_y)
+                if self.list_squares[index].is_grabbed() is False:
+                    self.list_squares[index].rect.move_ip(pos_x, pos_y)
 
                 pygame.draw.rect(screen, self.list_squares[index].color, self.list_squares[index].rect)
 
@@ -438,6 +504,12 @@ class Fitness:
 
             # screen.blit(winners_font, winners_rect)
 
+            # rasteira_rect.move_ip(dt * kill_line_velocity, 0)
+            # screen.blit(rasteira_resized, rasteira_rect)
+
+            # rasteira_rect_b.move_ip(-(dt * kill_line_velocity), 0)
+            # screen.blit(rasteira_resized_b, rasteira_rect_b)
+
             kill_line_a.move_ip(dt * kill_line_velocity, 0)
             pygame.draw.rect(screen, RED, kill_line_a)
 
@@ -455,9 +527,16 @@ class Fitness:
         # print('bestDistance', self.bestDistance)
 
         for index in range(0, len(self.list_squares)):
-            time_alive = self.list_squares[index].time_alive
+            #time_alive = self.list_squares[index].time_alive
 
-            fitness = 1 / time_alive
+            count_jumpings = self.list_squares[index].count_jumpings
+
+            fitness = -1
+
+            if count_jumpings > 0:
+                fitness = 1 / count_jumpings
+
+            print('fitness', fitness)
 
             self.fitness_results[index] = fitness
 
@@ -489,5 +568,5 @@ class GeneticAlgorithm:
                                                       )
 
 
-ga = GeneticAlgorithm(population_size=20, elite_size=0, mutation_rate=0.01, generations=500, fitness=Fitness)
+ga = GeneticAlgorithm(population_size=75, elite_size=0, mutation_rate=0.05, generations=500, fitness=Fitness)
 ga.start()
