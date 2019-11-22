@@ -43,7 +43,7 @@ levels = [
     "B                            B",
     "B                            B",
     "B                            B",
-    "B                            B",
+    "B                         GGGB",
     "B             I              B",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
@@ -192,6 +192,8 @@ class Fitness:
 
             dt = clock.tick(60)
 
+            kill_line_velocity = random.uniform(0.15, 0.25)
+
             if kill_line_a.centerx >= 600:
                 kill_line_a.centerx = 0
 
@@ -261,8 +263,10 @@ class Fitness:
                                 self.has_squares_alive = False
                             #continue
 
+                # distancia até o obstaculo mais perto em cada sentido
                 distance_top = distance_bottom = distance_right = distance_left = 600
 
+                # objeto mais perto em cada sentido
                 closer_right = closer_bottom = closer_left = closer_top = None
 
                 for ground in grounds:
@@ -298,22 +302,8 @@ class Fitness:
 
                     square = self.list_squares[index].rect
 
-                    # o quadrado é menor que as paredes, então ele sempre estará
-                    # contido em uma parede, os testes abaixo verificam esse caso
-
-                    if square.left > kill_line.left and square.right < kill_line.right:
-                        if square.top > kill_line.bottom:
-                            if abs(square.top - kill_line.bottom) <= distance_top:
-                                distance_top = abs(square.top - kill_line.bottom)
-                                closer_top = kill_line
-
-                        if square.bottom < kill_line.top:
-                            if abs(square.bottom - kill_line.top) <= distance_bottom:
-                                distance_bottom = abs(square.bottom - kill_line.top)
-                                closer_bottom = kill_line
-
-                    if square.bottom < kill_line.top:
-                        self.list_squares[index].increments_jump()
+                    # o quadrado é menor que os lasers, então ele sempre estará
+                    # contido em um lasers, os testes abaixo verificam esse caso
 
                     if square.top > kill_line.top and square.bottom < kill_line.bottom:
                         if square.right < kill_line.left:
@@ -341,19 +331,24 @@ class Fitness:
                 pos_x = pos_y = 0
 
                 if action == 0:
-                    pos_x = (velocity * dt)
+                    pos_x = pos_y = 0
                     closer_ground_distance = 300
                     closer_ground = None
 
                 if action == 1:
-                    pos_y = (velocity * dt)
+                    pos_x = (velocity * dt)
+                    closer_ground_distance = 300
+                    closer_ground = None
 
                 if action == 2:
+                    pos_y = (velocity * dt)
+
+                if action == 3:
                     pos_x = -(velocity * dt)
                     closer_ground_distance = 300
                     closer_ground = None
 
-                if action == 3:
+                if action == 4:
                     if self.list_squares[index].can_jumping():
                         self.list_squares[index].jump()
                         pos_y = -(velocity_jumping * dt)
@@ -527,14 +522,14 @@ class Fitness:
         # print('bestDistance', self.bestDistance)
 
         for index in range(0, len(self.list_squares)):
-            #time_alive = self.list_squares[index].time_alive
+            time_alive = self.list_squares[index].time_alive
 
-            count_jumpings = self.list_squares[index].count_jumpings
+            #count_jumpings = self.list_squares[index].count_jumpings
 
-            fitness = -1
+            fitness = 1
 
-            if count_jumpings > 0:
-                fitness = 1 / count_jumpings
+            if time_alive > 0:
+                fitness = 1 / time_alive
 
             print('fitness', fitness)
 
@@ -554,8 +549,8 @@ class GeneticAlgorithm:
 
     def start(self):
         input_size = 4
-        hidden_size = 6
-        output_size = 4
+        hidden_size = 8
+        output_size = 5  # parado, pular, direita, esquerda, baixo
         self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
 
         for i in range(0, self.generations):
@@ -568,5 +563,5 @@ class GeneticAlgorithm:
                                                       )
 
 
-ga = GeneticAlgorithm(population_size=75, elite_size=0, mutation_rate=0.05, generations=500, fitness=Fitness)
+ga = GeneticAlgorithm(population_size=75, elite_size=0, mutation_rate=0.01, generations=500, fitness=Fitness)
 ga.start()
