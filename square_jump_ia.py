@@ -12,17 +12,17 @@ BLACK = pygame.Color(0, 0, 0)
 WHITE = pygame.Color(255, 255, 255)
 RED = pygame.Color(255, 0, 0)
 GREEN = pygame.Color(0, 255, 0)
+BLUE = pygame.Color(0, 0, 255)
+
 WIDTH, HEIGHT = 600, 300
 
 SQUARE_WIDTH, SQUARE_HEIGHT = 8, 8
 WALL_WIDTH, WALL_HEIGHT = 20, 20
 
-velocity = 0.16
-gravity = 0.08
-velocity_jumping = 0.18
+velocity = 0.25
+gravity = 0.1
+velocity_jumping = 0.3
 max_height_jumping = 70
-
-kill_line_velocity = 0.25
 
 pygame.init()
 
@@ -39,35 +39,35 @@ levels = [
     "B                            B",
     "B                            B",
     "B                            B",
+    "B   PPPPPP                   B",
     "B                            B",
+    "B          PPPPPPP           B",
     "B                            B",
-    "B                            B",
-    "B                            B",
-    "B                         GGGB",
+    "B                  PPPPPP    B",
     "B             I              B",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
-    "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
+    "B                            B",
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 ]
 
 left = 0
 top = 0
 
-walls = []
+platforms = []
 borders = []
 grounds = []
 exit = 0
 pos_init = (0, 0)
 
-rasteira = pygame.image.load('rasteira.png')
-rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
-rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
+#rasteira = pygame.image.load('rasteira.png')
+#rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
+#rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
 
 for row in levels:
     for col in row:
-        if col == 'W':
-            wall = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
-            walls.append(wall)
+        if col == 'P':
+            platform = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
+            platforms.append(platform)
 
         if col == 'B':
             border = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
@@ -98,12 +98,13 @@ class Square:
         self.jumping = True
         self.jumping_height = 1
         self.grabbed = False
-        self.max_jumping_height = 60
+        self.max_jumping_height = 80
         self.alive = True
         self.time_alive = 0
-        self.jump_cooldown = 1000
+        self.jump_cooldown = 300
         self.last_jump_time = 0
         self.count_jumpings = 0
+        self.velocity = 0.16
 
     def is_jumping(self):
         return self.jumping is True
@@ -111,9 +112,9 @@ class Square:
     def is_grabbed(self):
         return self.grabbed is True
 
-    def can_jumping(self):
+    def can_jump(self):
         now = int(round(time.time() * 1000))
-        # print('can_jumping', now - self.last_jump_time)
+        # print('can_jump', now - self.last_jump_time)
 
         if self.jumping is False and (now - self.last_jump_time) >= self.jump_cooldown:
             return True
@@ -155,6 +156,13 @@ class Results:
 results = Results()
 
 
+class KillLine:
+    def __init__(self, rect, color, velocity):
+        self.rect = rect
+        self.color = color
+        self.velocity = velocity
+
+
 class Fitness:
     def __init__(self, population):
         self.population = population
@@ -165,18 +173,17 @@ class Fitness:
         self.has_squares_alive = True
         self.best_time = 0
 
+        self.list_kill_lines = []
+
     def run_game_rules(self):
 
         # results.resetWinners()
 
-        kill_line_a = pygame.Rect(0, 200, 3, 60)
-        kill_line_b = pygame.Rect(600, 200, 3, 60)
+        # rasteira_rect = rasteira_resized.get_rect()
+        # rasteira_rect.center = (0, 220)
 
-        rasteira_rect = rasteira_resized.get_rect()
-        rasteira_rect.center = (0, 220)
-
-        rasteira_rect_b = rasteira_resized_b.get_rect()
-        rasteira_rect_b.center = (600, 220)
+        # rasteira_rect_b = rasteira_resized_b.get_rect()
+        # rasteira_rect_b.center = (600, 220)
 
         start_time = int(round(time.time() * 1000))
 
@@ -188,23 +195,32 @@ class Fitness:
 
             self.list_squares.append(square)
 
+        self.list_kill_lines = []
+
         while self.has_squares_alive:
 
             dt = clock.tick(60)
 
-            kill_line_velocity = random.uniform(0.15, 0.25)
+            pygame.display.set_caption('FPS: {}'.format(clock.get_fps()))
 
-            if kill_line_a.centerx >= 600:
-                kill_line_a.centerx = 0
+            # chance de um laser ser criado
+            kill_line_born_rate = random.random()
+            if kill_line_born_rate <= 0.01:
+                kl_width = random.randint(3, 6)
+                kl_height = random.randint(20, 60)
+                kill_line_y = 260 - kl_height
+                kill_line_rect = pygame.Rect(0, kill_line_y, kl_width, kl_height)
+                color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                kill_line_velocity = random.uniform(0.18, 0.22)
+                kill_line = KillLine(kill_line_rect, color, kill_line_velocity)
+                self.list_kill_lines.append(kill_line)
 
-            if kill_line_b.centerx <= 0:
-                kill_line_b.centerx = 600
 
-            if rasteira_rect.centerx >= 600:
-                rasteira_rect.centerx = 0
+            #if rasteira_rect.centerx >= 600:
+            #    rasteira_rect.centerx = 0
 
-            if rasteira_rect_b.centerx <= 0:
-                rasteira_rect_b.centerx = 600
+            #if rasteira_rect_b.centerx <= 0:
+            #    rasteira_rect_b.centerx = 600
 
             screen.fill(BLACK)
 
@@ -255,6 +271,7 @@ class Fitness:
                         drag_position = event.pos
 
                     if event.type == pygame.KEYUP:
+                        # kill all
                         if event.key == pygame.K_SPACE:
                             for square in self.list_squares:
                                 square.alive = False
@@ -263,31 +280,44 @@ class Fitness:
                                 self.has_squares_alive = False
                             #continue
 
-                # distancia até o obstaculo mais perto em cada sentido
-                distance_top = distance_bottom = distance_right = distance_left = 600
+                if self.list_squares[index].is_grabbed() is False:
+                    # distancia até o chao / plataforma mais perto em cada sentido
+                    distance_top = distance_bottom = distance_right = distance_left = 600
 
-                # objeto mais perto em cada sentido
-                closer_right = closer_bottom = closer_left = closer_top = None
+                    distance_enemies = {
+                        'top': 600,
+                        'bottom': 600,
+                        'right': 600,
+                        'left': 600
+                    }
 
-                for ground in grounds:
+                    closer_enemies = {
+                        'right': None,
+                        'left': None
+                    }
 
-                    square = self.list_squares[index].rect
+                    # objeto mais perto em cada sentido
+                    closer_right = closer_bottom = closer_left = closer_top = None
 
-                    # o quadrado é menor que as paredes, então ele sempre estará
-                    # contido em uma parede, os testes abaixo verificam esse caso
+                    for ground in grounds:
 
-                    if square.left > ground.left and square.right < ground.right:
-                        if square.top > ground.bottom:
+                        square = self.list_squares[index].rect
+
+                        # o quadrado é menor que as paredes, então ele sempre estará
+                        # contido em uma parede, os testes abaixo verificam esse caso
+
+                        # if square.left >= ground.left and square.right <= ground.right:
+                        if square.top >= ground.bottom:
                             if abs(square.top - ground.bottom) <= distance_top:
                                 distance_top = abs(square.top - ground.bottom)
                                 closer_top = ground
 
-                        if square.bottom < ground.top:
+                        if square.bottom <= ground.top:
                             if abs(square.bottom - ground.top) <= distance_bottom:
                                 distance_bottom = abs(square.bottom - ground.top)
                                 closer_bottom = ground
 
-                    if square.top > ground.top and square.bottom < ground.bottom:
+                        # if square.top > ground.top and square.bottom < ground.bottom:
                         if square.right < ground.left:
                             if abs(square.right - ground.left) <= distance_right:
                                 distance_right = abs(square.right - ground.left)
@@ -298,157 +328,157 @@ class Fitness:
                                 distance_left = abs(square.left - ground.right)
                                 closer_left = ground
 
-                for kill_line in [kill_line_a, kill_line_b]:
+                    # distancia do laser mais perto
+                    for kill_line in self.list_kill_lines:
 
-                    square = self.list_squares[index].rect
+                        square = self.list_squares[index].rect
 
-                    # o quadrado é menor que os lasers, então ele sempre estará
-                    # contido em um lasers, os testes abaixo verificam esse caso
+                        # if square.top > kill_line.rect.top and square.bottom < kill_line.rect.bottom:
+                        if square.right < kill_line.rect.left:
+                            if abs(square.right - kill_line.rect.left) <= distance_enemies['right']:
+                                distance_enemies['right'] = abs(square.right - kill_line.rect.left)
+                                closer_enemies['right'] = kill_line.rect
 
-                    if square.top > kill_line.top and square.bottom < kill_line.bottom:
-                        if square.right < kill_line.left:
-                            if abs(square.right - kill_line.left) <= distance_right:
-                                distance_right = abs(square.right - kill_line.left)
-                                closer_right = kill_line
+                        if square.left > kill_line.rect.right:
+                            if abs(square.left - kill_line.rect.right) <= distance_enemies['left']:
+                                distance_enemies['left'] = abs(square.left - kill_line.rect.right)
+                                closer_enemies['left'] = kill_line.rect
 
-                        if square.left > kill_line.right:
-                            if abs(square.left - kill_line.right) <= distance_left:
-                                distance_left = abs(square.left - kill_line.right)
-                                closer_left = kill_line
+                    array_grounds = distance_right, distance_bottom, distance_left, distance_top
 
-                # if self.list_squares[index].is_grabbed() is False:
-                input_array = distance_right, distance_bottom, distance_left, distance_top
+                    array_enemies = distance_enemies['right'], distance_enemies['left']
 
-                output = neural_network.feed_forward(self.list_squares[index].weights, input_array)
+                    input_array = array_grounds + array_enemies
 
-                action = np.argmax(output)
+                    output = neural_network.feed_forward(self.list_squares[index].weights, input_array)
 
-                # 0 direita
-                # 1 baixo
-                # 2 esquerda
-                # 3 pular
+                    action = np.argmax(output)
 
-                pos_x = pos_y = 0
+                    # 0 direita
+                    # 1 baixo
+                    # 2 esquerda
+                    # 3 pular
 
-                if action == 0:
                     pos_x = pos_y = 0
-                    closer_ground_distance = 300
-                    closer_ground = None
 
-                if action == 1:
-                    pos_x = (velocity * dt)
-                    closer_ground_distance = 300
-                    closer_ground = None
-
-                if action == 2:
-                    pos_y = (velocity * dt)
-
-                if action == 3:
-                    pos_x = -(velocity * dt)
-                    closer_ground_distance = 300
-                    closer_ground = None
-
-                if action == 4:
-                    if self.list_squares[index].can_jumping():
-                        self.list_squares[index].jump()
-                        pos_y = -(velocity_jumping * dt)
-                        current_distance = 300
+                    if action == 0:
+                        pos_x = pos_y = 0
                         closer_ground_distance = 300
                         closer_ground = None
-                        self.list_squares[index].jumping = True
-                        self.list_squares[index].jumping_height += abs((velocity_jumping * dt))
 
+                    if action == 1:
+                        pos_x = (velocity * dt)
+                        closer_ground_distance = 300
+                        closer_ground = None
 
-                for ground in grounds:
+                    if action == 2:
+                        pos_y = (velocity * dt)
 
-                    # se estiver caindo ou parado vai verificar o chao mais proximo
-                    if pos_y >= 0:
-                        current_distance = math.hypot(self.list_squares[index].rect.centerx - ground.centerx,
-                                                      self.list_squares[index].rect.bottom - ground.top)
+                    if action == 3:
+                        pos_x = -(velocity * dt)
+                        closer_ground_distance = 300
+                        closer_ground = None
 
-                        # se o chao testado for o mais proximo, atribui
-                        if current_distance <= closer_ground_distance:
-                            closer_ground = ground
-                            closer_ground_distance = current_distance
+                    if action == 4:
+                        if self.list_squares[index].can_jump():
+                            self.list_squares[index].jump()
+                            pos_y = -(velocity_jumping * dt)
+                            current_distance = 300
+                            closer_ground_distance = 300
+                            closer_ground = None
+                            self.list_squares[index].jumping = True
+                            self.list_squares[index].jumping_height += abs((velocity_jumping * dt))
 
-                        if closer_ground is not None:
-                            # testa se o quadrado saiu da plataforma
-                            if pos_x > 0:
-                                if self.list_squares[index].rect.left < closer_ground.right and \
-                                        self.list_squares[index].rect.bottom <= closer_ground.top:
-                                    self.list_squares[index].jumping = True
+                    for ground in grounds:
 
-                            # testa se o quadrado saiu da plataforma
-                            if pos_x < 0:
-                                if self.list_squares[index].rect.right > closer_ground.left and \
-                                        self.list_squares[index].rect.bottom <= closer_ground.top:
-                                    self.list_squares[index].jumping = True
+                        # se estiver caindo ou parado vai verificar o chao mais proximo
+                        if pos_y >= 0:
+                            current_distance = math.hypot(self.list_squares[index].rect.centerx - ground.centerx,
+                                                          self.list_squares[index].rect.bottom - ground.top)
 
-                            # verifica a colisao com o chao mais proximo
-                            if self.list_squares[index].rect.colliderect(closer_ground):
-                                # print('colidiu')
+                            # se o chao testado for o mais proximo, atribui
+                            if current_distance <= closer_ground_distance:
+                                closer_ground = ground
+                                closer_ground_distance = current_distance
 
-                                self.list_squares[index].jumping = False
-                                self.list_squares[index].jumping_height = 0
+                            if closer_ground is not None:
+                                # testa se o quadrado saiu da plataforma
+                                if pos_x > 0:
+                                    if self.list_squares[index].rect.left < closer_ground.right and \
+                                            self.list_squares[index].rect.bottom < closer_ground.top:
+                                        self.list_squares[index].jumping = True
 
-                                self.list_squares[index].rect.bottom = closer_ground.top
+                                # testa se o quadrado saiu da plataforma
+                                if pos_x < 0:
+                                    if self.list_squares[index].rect.right > closer_ground.left and \
+                                            self.list_squares[index].rect.bottom < closer_ground.top:
+                                        self.list_squares[index].jumping = True
 
-                                pos_y = 0
+                                # verifica a colisao com o chao mais proximo
+                                if self.list_squares[index].rect.colliderect(closer_ground):
+                                    # print('colidiu')
 
-                        # se o estado for pulando aplica a gravidade
-                        if self.list_squares[index].is_jumping():
-                            # print('gravidade')
-                            pos_y = (velocity + gravity) * dt
+                                    self.list_squares[index].jumping = False
+                                    self.list_squares[index].jumping_height = 0
 
-                for ground in grounds:
-                    if self.list_squares[index].rect.colliderect(ground) and \
-                            self.list_squares[index].rect.bottom > ground.bottom:
-                        self.list_squares[index].jumping_height = max_height_jumping
-                        self.list_squares[index].rect.top = ground.bottom
-                        pos_y = 0
+                                    self.list_squares[index].rect.bottom = closer_ground.top
 
-                # not dragged
-                if not self.list_squares[index].is_grabbed():
+                                    pos_y = 0
+
+                            # se o estado for pulando aplica a gravidade
+                            if self.list_squares[index].is_jumping():
+                                # print('gravidade')
+                                pos_y = (velocity + gravity) * dt
+
+                        # se bateu na parte de baixo de uma plataforma
+                        if self.list_squares[index].rect.colliderect(ground) and \
+                                self.list_squares[index].rect.bottom > ground.bottom:
+                            self.list_squares[index].jumping_height = max_height_jumping
+                            self.list_squares[index].rect.top = ground.bottom
+                            pos_y = 0
+
+                    # not grabbed
                     self.list_squares[index].rect.move_ip(pos_x, pos_y)
 
-                # dragged
+                    '''x1, y1 = self.list_squares[index].rect.center
+
+                    if closer_right is not None:
+                        r_x2, r_y2 = closer_right.center
+                        pygame.draw.line(screen, GREEN, (x1, y1), (r_x2, r_y2), 1)
+
+                    if closer_bottom is not None:
+                        b_x2, b_y2 = closer_bottom.center
+                        pygame.draw.line(screen, GREEN, (x1, y1), (b_x2, b_y2), 1)
+
+                    if closer_left is not None:
+                        l_x2, l_y2 = closer_left.center
+                        pygame.draw.line(screen, GREEN, (x1, y1), (l_x2, l_y2), 1)
+
+                    if closer_top is not None:
+                        t_x2, t_y2 = closer_top.center
+                        pygame.draw.line(screen, GREEN, (x1, y1), (t_x2, t_y2), 1)
+
+                    if closer_enemies['right'] is not None:
+                        r_x2, r_y2 = closer_enemies['right'].center
+                        pygame.draw.line(screen, RED, (x1, y1), (r_x2, r_y2), 1)
+
+                    if closer_enemies['left'] is not None:
+                        l_x2, l_y2 = closer_enemies['left'].center
+                        pygame.draw.line(screen, RED, (x1, y1), (l_x2, l_y2), 1)'''
+
+                    # grabbed
                 if self.list_squares[index].is_grabbed():
                     self.list_squares[index].rect.center = drag_position
-
-                x1, y1 = self.list_squares[index].rect.center
-
-                if closer_right is not None:
-                    r_x2, r_y2 = closer_right.center
-                    pygame.draw.line(screen, RED, (x1, y1), (r_x2, r_y2), 1)
-
-                if closer_bottom is not None:
-                    b_x2, b_y2 = closer_bottom.center
-                    pygame.draw.line(screen, RED, (x1, y1), (b_x2, b_y2), 1)
-
-                if closer_left is not None:
-                    l_x2, l_y2 = closer_left.center
-                    pygame.draw.line(screen, RED, (x1, y1), (l_x2, l_y2), 1)
-
-                if closer_top is not None:
-                    t_x2, t_y2 = closer_top.center
-                    pygame.draw.line(screen, RED, (x1, y1), (t_x2, t_y2), 1)
-
-                for wall in walls:
-                    pygame.draw.rect(screen, WHITE, wall)
-
-                for border in borders:
-                    pygame.draw.rect(screen, RED, border)
 
                 for ground in grounds:
                     pygame.draw.rect(screen, WHITE, ground)
 
-                # pygame.draw.rect(screen, GREEN, exit)
-
-                if self.list_squares[index].rect.colliderect(kill_line_a) or \
-                        self.list_squares[index].rect.colliderect(kill_line_b):
-                    self.list_squares[index].alive = False
+                for platform in platforms:
+                    pygame.draw.rect(screen, WHITE, platform)
 
                 for border in borders:
+                    pygame.draw.rect(screen, RED, border)
+
                     if self.list_squares[index].rect.colliderect(border):
                         # print('bateu')
                         if pos_x > 0:
@@ -457,17 +487,25 @@ class Fitness:
                         if pos_x < 0:
                             self.list_squares[index].rect.left = border.right
 
+                # pygame.draw.rect(screen, GREEN, exit)
+
+                # colisao com os lasers
+                for kill_line in self.list_kill_lines:
+                    if self.list_squares[index].rect.colliderect(kill_line.rect):
+                        self.list_squares[index].alive = False
+
+                # tempo de vida do individuo
                 if self.list_squares[index].alive is False:
                     die_time = int(round(time.time() * 1000))
                     self.list_squares[index].time_alive = die_time - start_time
 
-                # if self.list_squares[index][1].colliderect(exit):
                 # results.incrementWinners(1)
 
-                if self.list_squares[index].is_grabbed() is False:
-                    self.list_squares[index].rect.move_ip(pos_x, pos_y)
-
                 pygame.draw.rect(screen, self.list_squares[index].color, self.list_squares[index].rect)
+
+            for kill_line in self.list_kill_lines:
+                kill_line.rect.move_ip(dt * kill_line.velocity, 0)
+                pygame.draw.rect(screen, kill_line.color, kill_line.rect)
 
             alives = 0
 
@@ -505,12 +543,6 @@ class Fitness:
             # rasteira_rect_b.move_ip(-(dt * kill_line_velocity), 0)
             # screen.blit(rasteira_resized_b, rasteira_rect_b)
 
-            kill_line_a.move_ip(dt * kill_line_velocity, 0)
-            pygame.draw.rect(screen, RED, kill_line_a)
-
-            kill_line_b.move_ip(-(dt * kill_line_velocity), 0)
-            pygame.draw.rect(screen, RED, kill_line_b)
-
             pygame.display.flip()
 
         return True
@@ -531,7 +563,7 @@ class Fitness:
             if time_alive > 0:
                 fitness = 1 / time_alive
 
-            print('fitness', fitness)
+            # print('fitness', fitness)
 
             self.fitness_results[index] = fitness
 
@@ -548,8 +580,8 @@ class GeneticAlgorithm:
         self.fitness = fitness
 
     def start(self):
-        input_size = 4
-        hidden_size = 8
+        input_size = 6
+        hidden_size = 10
         output_size = 5  # parado, pular, direita, esquerda, baixo
         self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
 
@@ -563,5 +595,5 @@ class GeneticAlgorithm:
                                                       )
 
 
-ga = GeneticAlgorithm(population_size=75, elite_size=0, mutation_rate=0.01, generations=500, fitness=Fitness)
+ga = GeneticAlgorithm(population_size=50, elite_size=0, mutation_rate=0.02, generations=500, fitness=Fitness)
 ga.start()
