@@ -130,7 +130,7 @@ def mutate(individual, mutation_rate):
                     new_weight.append(random.uniform(-1., 1))
                     # print('neuronio', individual[i][neuron])
 
-                print('mutacao', new_weight)
+                #print('mutacao', new_weight)
 
                 individual[i][neuron] = new_weight
 
