@@ -43,7 +43,7 @@ levels = [
     "B                            B",
     "B          PPPPPPP           B",
     "B                            B",
-    "B                  PPPPPP    B",
+    "B                  GGGGGG    B",
     "B             I              B",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
     "B                            B",
@@ -101,7 +101,7 @@ class Square:
         self.max_jumping_height = 80
         self.alive = True
         self.time_alive = 0
-        self.jump_cooldown = 300
+        self.jump_cooldown = 500
         self.last_jump_time = 0
         self.count_jumpings = 0
         self.velocity = 0.16
@@ -157,10 +157,11 @@ results = Results()
 
 
 class KillLine:
-    def __init__(self, rect, color, velocity):
+    def __init__(self, rect, color, velocity, direction):
         self.rect = rect
         self.color = color
         self.velocity = velocity
+        self.direction = direction
 
 
 class Fitness:
@@ -173,7 +174,26 @@ class Fitness:
         self.has_squares_alive = True
         self.best_time = 0
 
+        self.automatic_creation_kill_lasers = True
         self.list_kill_lines = []
+
+    def create_kill_laser(self):
+        kl_width = random.randint(3, 6)
+        kl_height = random.randint(20, 60)
+        kill_line_y = 260 - kl_height
+
+        kill_line_direction = 'to_left'
+        position_start_x = WIDTH
+        if random.random() <= 0.1:
+            kill_line_direction = 'to_right'
+            position_start_x = 0
+
+        kill_line_rect = pygame.Rect(position_start_x, kill_line_y, kl_width, kl_height)
+        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        kill_line_velocity = random.uniform(0.18, 0.22)
+
+        kill_line = KillLine(kill_line_rect, color, kill_line_velocity, kill_line_direction)
+        self.list_kill_lines.append(kill_line)
 
     def run_game_rules(self):
 
@@ -203,19 +223,6 @@ class Fitness:
 
             pygame.display.set_caption('FPS: {}'.format(clock.get_fps()))
 
-            # chance de um laser ser criado
-            kill_line_born_rate = random.random()
-            if kill_line_born_rate <= 0.01:
-                kl_width = random.randint(3, 6)
-                kl_height = random.randint(20, 60)
-                kill_line_y = 260 - kl_height
-                kill_line_rect = pygame.Rect(0, kill_line_y, kl_width, kl_height)
-                color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                kill_line_velocity = random.uniform(0.18, 0.22)
-                kill_line = KillLine(kill_line_rect, color, kill_line_velocity)
-                self.list_kill_lines.append(kill_line)
-
-
             #if rasteira_rect.centerx >= 600:
             #    rasteira_rect.centerx = 0
 
@@ -223,6 +230,79 @@ class Fitness:
             #    rasteira_rect_b.centerx = 600
 
             screen.fill(BLACK)
+
+            grab_position = 0, 0
+            drag_position = 0, 0
+
+            # eventos
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+                # mouse button down
+                if event.type == 5:
+                    # print('event', event)
+                    grab_position = event.pos
+
+                    for square in self.list_squares:
+                        if square.rect.collidepoint(grab_position[0], grab_position[1]):
+                            square.grabbed = True
+                            square.rect.inflate_ip(+3, +3)
+
+                    drag_position = event.pos
+
+                # mouse button up
+                if event.type == 6:
+                    # print('event', event)
+
+                    for square in self.list_squares:
+                        if square.is_grabbed():
+                            square.rect.inflate_ip(-3, -3)
+
+                            grab_position = 0, 0
+                            square.grabbed = False
+                            square.jumping = True
+                            closer_ground_distance = 300
+                            closer_ground = None
+
+                # mouse motion
+                if event.type == 4:
+                    for square in self.list_squares:
+                        if square.is_grabbed():
+                            # print('event', event)
+                            drag_position = event.pos
+
+                if event.type == pygame.KEYUP:
+                    # kill all
+                    if event.key == pygame.K_SPACE:
+                        for square in self.list_squares:
+                            square.alive = False
+                            die_time = int(round(time.time() * 1000))
+                            square.time_alive = die_time - start_time
+                            self.has_squares_alive = False
+                        # continue
+
+                    if event.key == pygame.K_a:
+                        self.list_kill_lines = []
+
+                        if self.automatic_creation_kill_lasers:
+                            self.automatic_creation_kill_lasers = False
+
+                        else:
+                            self.automatic_creation_kill_lasers = True
+
+                    if event.key == pygame.K_f:
+                        self.create_kill_laser()
+
+            if self.automatic_creation_kill_lasers and len(self.list_kill_lines) == 0:
+                # chance de um laser ser criado
+                kill_line_born_rate = random.random()
+
+                if kill_line_born_rate <= 0.01:
+                    self.create_kill_laser()
+
+
 
             for index in range(0, len(self.list_squares)):
 
@@ -232,53 +312,6 @@ class Fitness:
                 current_distance = 300
                 closer_ground_distance = 300
                 closer_ground = None
-                grab_position = 0, 0
-                drag_position = 0, 0
-
-                # eventos
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        pygame.quit()
-                        sys.exit()
-
-                    # mouse button down
-                    if event.type == 5:
-                        # print('event', event)
-                        grab_position = event.pos
-
-                        if self.list_squares[index].rect.collidepoint(grab_position[0], grab_position[1]):
-                            self.list_squares[index].grabbed = True
-                            self.list_squares[index].rect.inflate_ip(+3, +3)
-
-                        drag_position = event.pos
-
-                    # mouse button up
-                    if event.type == 6:
-                        # print('event', event)
-
-                        if self.list_squares[index].is_grabbed():
-                            self.list_squares[index].rect.inflate_ip(-3, -3)
-
-                        grab_position = 0, 0
-                        self.list_squares[index].grabbed = False
-                        self.list_squares[index].jumping = True
-                        closer_ground_distance = 300
-                        closer_ground = None
-
-                    # mouse motion
-                    if event.type == 4 and self.list_squares[index].is_grabbed():
-                        # print('event', event)
-                        drag_position = event.pos
-
-                    if event.type == pygame.KEYUP:
-                        # kill all
-                        if event.key == pygame.K_SPACE:
-                            for square in self.list_squares:
-                                square.alive = False
-                                die_time = int(round(time.time() * 1000))
-                                square.time_alive = die_time - start_time
-                                self.has_squares_alive = False
-                            #continue
 
                 if self.list_squares[index].is_grabbed() is False:
                     # distancia até o chao / plataforma mais perto em cada sentido
@@ -438,7 +471,8 @@ class Fitness:
                             pos_y = 0
 
                     # not grabbed
-                    self.list_squares[index].rect.move_ip(pos_x, pos_y)
+                    if not self.list_squares[index].is_grabbed():
+                        self.list_squares[index].rect.move_ip(pos_x, pos_y)
 
                     '''x1, y1 = self.list_squares[index].rect.center
 
@@ -467,7 +501,7 @@ class Fitness:
                         pygame.draw.line(screen, RED, (x1, y1), (l_x2, l_y2), 1)'''
 
                     # grabbed
-                if self.list_squares[index].is_grabbed():
+                if self.list_squares[index].is_grabbed() and (drag_position[0] != 0 or drag_position[1] != 0):
                     self.list_squares[index].rect.center = drag_position
 
                 for ground in grounds:
@@ -504,8 +538,15 @@ class Fitness:
                 pygame.draw.rect(screen, self.list_squares[index].color, self.list_squares[index].rect)
 
             for kill_line in self.list_kill_lines:
-                kill_line.rect.move_ip(dt * kill_line.velocity, 0)
+                kl_pos_x = dt * kill_line.velocity
+                if kill_line.direction == 'to_left':
+                    kl_pos_x = kl_pos_x * -1
+
+                kill_line.rect.move_ip(kl_pos_x, 0)
                 pygame.draw.rect(screen, kill_line.color, kill_line.rect)
+
+                if (kill_line.direction == 'to_left' and kill_line.rect.left <= 0) or (kill_line.direction == 'to_right' and kill_line.rect.right >= WIDTH):
+                    self.list_kill_lines = []
 
             alives = 0
 
