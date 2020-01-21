@@ -25,19 +25,19 @@ clock = pygame.time.Clock()
 
 levels = [
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-    "BWWWWWWWWW                   B",
-    "BW  I    W                   B",
-    "BW       W                   B",
-    "BW       W                   B",
-    "BW       W                   B",
-    "BW       WWWWWWWWWWWWWWWWWWWWB",
+    "BW                      WWWWWB",
+    "BW                      W E WB",
+    "BWWWWWWWWWWWWWWWWWWWWWWWW   WB",
+    "BW                  W       WB",
+    "BW             W    W       WB",
+    "BW             W            WB",
+    "BWI        WWWWWWWWWWWWWWWWWWB",
     "BW                          WB",
-    "BW                          WB",
-    "BWWWWWWWWWWWWWWWWWWW        WB",
-    "B                  W        WB",
-    "B                  W        WB",
-    "B                  W     E  WB",
-    "B                  WWWWWWWWWWB",
+    "BW         WWWWWWWWWWWWWWWWWWB",
+    "BW                           B",
+    "BW                           B",
+    "BW                           B",
+    "BW                           B",
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 ]
 
