@@ -13,7 +13,7 @@ WHITE = pygame.Color(255, 255, 255)
 class Background(pygame.sprite.Sprite):
     def __init__(self, image_file, position):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load(image_file)
+        self.image = pygame.image.load(image_file).convert()
         self.resized = pygame.transform.scale(self.image, WINDOW_SIZE)
         self.rect = self.resized.get_rect()
         self.rect.left, self.rect.top = position

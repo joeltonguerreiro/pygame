@@ -1,5 +1,8 @@
-import pygame
+import math
 import sys
+
+import pygame
+import pygame_gui
 
 BLACK = pygame.Color(0, 0, 0)
 WHITE = pygame.Color(255, 255, 255)
@@ -13,7 +16,15 @@ WALL_WIDTH, WALL_HEIGHT = 20, 20
 
 pygame.init()
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+window = (WIDTH, HEIGHT)
+
+screen = pygame.display.set_mode(window)
+manager = pygame_gui.UIManager(window)
+background = pygame.Surface(window)
+
+hello_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((500, 250), (100, 50)),
+                                             text='reset',
+                                             manager=manager)
 
 clock = pygame.time.Clock()
 
@@ -64,37 +75,63 @@ for row in levels:
 
 pause = False
 
+# background.fill(BLACK)
+
+for wall in walls:
+    pygame.draw.rect(background, WHITE, wall)
+
+screen.blit(background, (0, 0))
+
+pygame.display.update()
+
 while True:
 
-    dt = clock.tick(60)
+    dt = clock.tick(90)
 
     events = pygame.event.get()
 
     for event in events:
-        if event.type == 5:
+
+        if pygame.event.event_name(event.type) == 'MouseButtonDown':
             destiny = event.pos
 
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_SPACE:
-                square.centerx = WIDTH // 2
-                square.centery = HEIGHT // 2
-                destiny = 0, 0
-                continue
+        # if event.type == pygame.KEYUP:
+        #     if event.key == pygame.K_SPACE:
+        #         square.centerx = WIDTH // 2
+        #         square.centery = HEIGHT // 2
+        #         destiny = 0, 0
+        #         continue
 
-    screen.fill(BLACK)
+        if event.type == pygame.USEREVENT:
+            if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+                if event.ui_element == hello_button:
+                    print('Hello World!')
+                    square.centerx = WIDTH // 2
+                    square.centery = HEIGHT // 2
+                    destiny = 0, 0
+                    continue
 
-    if (destiny[0] != 0 or destiny[1] != 0):
+        manager.process_events(event)
+
+    manager.update(dt)
+
+    if destiny[0] != 0 or destiny[1] != 0:
+        # verifica se a posição destino é diferente de 0
         x1 = square.centerx
         y1 = square.centery
         x2 = destiny[0]
         y2 = destiny[1]
 
-        pygame.draw.line(screen, RED, (x1, y1), (x2, y2), 1)
+        screen.blit(background, (0, 0))
+        new = pygame.draw.line(background, RED, (x1, y1), (x2, y2), 1)
+        screen.blit(background, (0, 0))
+        pygame.display.update(new)
 
         try:
             a = b = 0
 
-            if ((x2 - x1) != 0):
+            if (x2 - x1) != 0:
+                # calcula a distância entre as posições de origem e destino
                 a = (y2 - y1) / (x2 - x1)
                 b = ((y1 * x2) - (y2 * x1)) / (x2 - x1)
 
@@ -103,30 +140,41 @@ while True:
             else:
                 print('divisao por 0', x2, x1)
                 print('y2:', y2, 'y1:', y1)
-                destiny = x2, y2
-                print('destiny', destiny)
+                x = 0
+                y = square.centery
                 # continue
-
 
         except Exception as e:
             print('except', e)
             pygame.quit()
             sys.exit()
 
-        pos_x = velocity * dt
-        if (destiny[0] < x):
-            pos_x = -pos_x
-        if (destiny[0] == x):
-            pos_x = 0
 
-        pos_y = round(velocity * dt, 0)
-        if (destiny[1] < y):
-            pos_y = -pos_y
-        if (destiny[1] == y):
-            pos_y = 0
+
+        # verifica se chegou
+        if square.centerx == destiny[0] and square.centery == destiny[1]:
+            print('chegou')
+            destiny = 0, 0
+
+        pos_x = 0
+        if destiny[0] != x:
+            pos_x = math.floor(velocity * dt)
+            if destiny[0] < x:
+                pos_x = -pos_x
+
+        pos_y = 0
+        if destiny[1] != y:
+            pos_y = math.floor(velocity * dt)
+
+            if destiny[1] < y:
+                pos_y = -pos_y
+
+        dirty_rects = [square]
+
+        screen.blit(background, square)
 
         # verifica se deve andar
-        if (pos_x != 0 or pos_x != x2):
+        if pos_x != 0 or pos_x != x2:
             square.move_ip(pos_x, 0)
 
         for wall in walls:
@@ -137,8 +185,16 @@ while True:
                 if pos_x < 0:
                     square.left = wall.right
 
-        if (pos_y != 0 or pos_x != y2):
+        if pos_y != 0 or pos_y != y2:
             square.move_ip(0, pos_y)
+
+        # dirty_rects.append(square)
+
+        pygame.draw.rect(background, RED, square)
+
+        # screen.blit(background, square)
+
+        pygame.display.update(dirty_rects)
 
         for wall in walls:
             if square.colliderect(wall):
@@ -148,14 +204,6 @@ while True:
 
                 if pos_y < 0:
                     square.top = wall.bottom
-
-        # verifica se chegou
-        if (square.centerx == destiny[0] and square.centery == destiny[1]):
-            print('chegou')
-            destiny = 0, 0
-
-    for wall in walls:
-        pygame.draw.rect(screen, WHITE, wall)
 
     str_pos_square = 'square x=' + str(square.centerx) + ', y=' + str(square.centery)
     text_square = font.render(str_pos_square, True, WHITE)
@@ -171,6 +219,9 @@ while True:
 
     screen.blit(text_destiny, text_rect_destiny)
 
-    pygame.draw.rect(screen, RED, square)
+    manager.draw_ui(screen)
 
-    pygame.display.flip()
+    # pygame.display.flip()
+
+
+

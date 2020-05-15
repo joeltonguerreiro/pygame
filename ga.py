@@ -1,16 +1,20 @@
-import numpy as np
+import json
 import operator
-import pandas as pd
 import random
+
+import numpy as np
+import pandas as pd
 
 
 def initial_population(population_size, input_size, hidden_size, output_size):
     population = []
 
     for i in range(0, population_size):
-        individual = [np.random.uniform(-1., 1., (input_size, hidden_size)),
-                      np.random.uniform(-1., 1., (hidden_size, hidden_size)),
-                      np.random.uniform(-1., 1., (hidden_size, output_size))]
+        individual = [
+            np.random.uniform(-1., 1., (input_size, hidden_size)),
+            np.random.uniform(-1., 1., (hidden_size, hidden_size)),
+            np.random.uniform(-1., 1., (hidden_size, output_size))
+        ]
 
         population.append(individual)
 
@@ -22,6 +26,8 @@ def rank_individuals(population, fitness):
     fitness_results = fitness(population).get_fitness()
 
     rank = sorted(fitness_results.items(), key=operator.itemgetter(1), reverse=False)
+
+    print('rank', rank)
 
     return rank
 
@@ -35,10 +41,13 @@ def selection(population_ranked, elite_size):
 
     for i in range(0, elite_size):
         selection_results.append(population_ranked[i][0])
+        del population_ranked[i]
 
     top_percent = int(len(population_ranked) * 0.3)
 
     firsts = population_ranked[:top_percent]
+
+    print('firsts', firsts)
 
     length = len(firsts)
 
@@ -169,6 +178,38 @@ def next_generation(current_generation, elite_size, mutation_rate, fitness):
     return mutate_population(children, mutation_rate)
 
 
+def save_weights(filename, population):
+    weights = np.array([])
+
+    for ind in population:
+        for bias in ind:
+            weights = np.array(np.append(weights, bias))
+
+    np.savetxt(filename, weights)
+
+
+def parse_weights_population(new_data, input_size, hidden_size, output_size):
+    n1_end = input_size * hidden_size
+    n2_start = input_size * hidden_size
+    n2_end = (input_size + hidden_size) * hidden_size
+    n3_start = (input_size + hidden_size) * hidden_size
+
+    population = []
+
+    for ind in new_data:
+        n1 = ind[:n1_end]
+        n2 = ind[n2_start:n2_end]
+        n3 = ind[n3_start:]
+
+        new_array = [np.split(n1, input_size),
+                     np.split(n2, hidden_size),
+                     np.split(n3, hidden_size)]
+
+        population.append(new_array)
+
+    return population
+
+
 class GeneticAlgorithm:
     def __init__(self, population_size, elite_size, mutation_rate, generations, fitness):
         self.population_size = population_size
@@ -184,6 +225,18 @@ class GeneticAlgorithm:
         output_size = 4
         self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
 
+        load_weights = True
+
+        if load_weights:
+            data = np.loadtxt('data_weights.csv')
+
+            new_data = np.split(data, self.population_size)
+
+            self.current_population = parse_weights_population(new_data, input_size, hidden_size, output_size)
+
+        else:
+            self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
+
         for i in range(0, self.generations):
             print('generation: ', i)
             # results.incrementGenerations()
@@ -193,7 +246,14 @@ class GeneticAlgorithm:
                                                       self.fitness
                                                       )
 
+            is_to_save_weights = True
+
+            if is_to_save_weights:
+                save_weights('data_weights.csv', self.current_population)
+
         # best_individual_index = self.rankIndividuals(self.currentPopulation)[0][0]
         # best_individual = self.currentPopulation[best_individual_index]
         # print(best_individual)
+
+
 

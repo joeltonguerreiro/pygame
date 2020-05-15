@@ -1,8 +1,8 @@
-import numpy as np
 import operator
-import pandas as pd
 import random
 
+import numpy as np
+import pandas as pd
 import pygame
 
 BLACK = pygame.Color(0, 0, 0)

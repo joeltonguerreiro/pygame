@@ -1,12 +1,14 @@
-import numpy as np
-import random
 import math
-import pygame
+import random
 import sys
 import time
 
-from neural_network import NeuralNetwork
+import numpy as np
+import pygame
+import json
+
 from ga import *
+from neural_network import NeuralNetwork
 
 BLACK = pygame.Color(0, 0, 0)
 WHITE = pygame.Color(255, 255, 255)
@@ -16,17 +18,20 @@ BLUE = pygame.Color(0, 0, 255)
 
 WIDTH, HEIGHT = 600, 300
 
+window = WIDTH, HEIGHT
+
 SQUARE_WIDTH, SQUARE_HEIGHT = 8, 8
 WALL_WIDTH, WALL_HEIGHT = 20, 20
 
 velocity = 0.25
 gravity = 0.1
 velocity_jumping = 0.3
-max_height_jumping = 70
+max_height_jumping = 40
 
 pygame.init()
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+screen = pygame.display.set_mode(window)
+background = pygame.Surface(window)
 
 clock = pygame.time.Clock()
 
@@ -35,18 +40,18 @@ font = pygame.font.Font('freesansbold.ttf', 12)
 levels = [
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     "B                            B",
+    "B            I               B",
     "B                            B",
     "B                            B",
     "B                            B",
     "B                            B",
-    "B   PPPPPP                   B",
     "B                            B",
-    "B          PPPPPPP           B",
     "B                            B",
-    "B                  GGGGGG    B",
-    "B             I              B",
+    "B                            B",
+    "B              L             B",
+    "B                GGGGGG      B",
+    "B                            B",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
-    "B                            B",
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 ]
 
@@ -56,12 +61,20 @@ top = 0
 platforms = []
 borders = []
 grounds = []
+lifes = []
 exit = 0
 pos_init = (0, 0)
 
 #rasteira = pygame.image.load('rasteira.png')
 #rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
 #rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
+
+# I = initial position
+# P = plataform
+# B = border
+# E = exit
+# G = ground
+
 
 for row in levels:
     for col in row:
@@ -73,8 +86,8 @@ for row in levels:
             border = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
             borders.append(border)
 
-        if col == 'E':
-            exit = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
+        # if col == 'E':
+        #     exit = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
 
         if col == 'I':
             pos_init = left, top
@@ -82,6 +95,10 @@ for row in levels:
         if col == 'G':
             ground = pygame.Rect(left, top, WALL_WIDTH, WALL_HEIGHT)
             grounds.append(ground)
+
+        if col == 'L':
+            life = pygame.Rect(left, top, 20, 20)
+            lifes.append(life)
 
         left += WALL_WIDTH
 
@@ -92,19 +109,20 @@ for row in levels:
 
 class Square:
     def __init__(self, weights, rect, color):
-        self.weights = weights
+        self.weights = weights # pesos bias
         self.rect = rect
         self.color = color
         self.jumping = True
         self.jumping_height = 1
         self.grabbed = False
-        self.max_jumping_height = 80
+        self.max_jumping_height = 40
         self.alive = True
         self.time_alive = 0
-        self.jump_cooldown = 500
+        self.jump_cooldown = 1000
         self.last_jump_time = 0
         self.count_jumpings = 0
         self.velocity = 0.16
+        self.energy = 100
 
     def is_jumping(self):
         return self.jumping is True
@@ -174,17 +192,17 @@ class Fitness:
         self.has_squares_alive = True
         self.best_time = 0
 
-        self.automatic_creation_kill_lasers = True
+        self.automatic_creation_kill_lines = True
         self.list_kill_lines = []
 
-    def create_kill_laser(self):
+    def create_kill_lines(self):
         kl_width = random.randint(3, 6)
         kl_height = random.randint(20, 60)
         kill_line_y = 260 - kl_height
 
         kill_line_direction = 'to_left'
         position_start_x = WIDTH
-        if random.random() <= 0.1:
+        if random.random() <= 0.5:
             kill_line_direction = 'to_right'
             position_start_x = 0
 
@@ -217,9 +235,9 @@ class Fitness:
 
         self.list_kill_lines = []
 
+        # enquanto existirem squares vivos
         while self.has_squares_alive:
-
-            dt = clock.tick(60)
+            dt = clock.tick(30)
 
             pygame.display.set_caption('FPS: {}'.format(clock.get_fps()))
 
@@ -229,7 +247,10 @@ class Fitness:
             #if rasteira_rect_b.centerx <= 0:
             #    rasteira_rect_b.centerx = 600
 
-            screen.fill(BLACK)
+            dirty = []
+
+            background.fill(BLACK)
+            dirty.append(screen.blit(background, (0, 0)))
 
             grab_position = 0, 0
             drag_position = 0, 0
@@ -241,7 +262,7 @@ class Fitness:
                     sys.exit()
 
                 # mouse button down
-                if event.type == 5:
+                if pygame.event.event_name(event.type) == 'MouseButtonDown':
                     # print('event', event)
                     grab_position = event.pos
 
@@ -253,7 +274,7 @@ class Fitness:
                     drag_position = event.pos
 
                 # mouse button up
-                if event.type == 6:
+                if pygame.event.event_name(event.type) == 'MouseButtonUp':
                     # print('event', event)
 
                     for square in self.list_squares:
@@ -267,7 +288,7 @@ class Fitness:
                             closer_ground = None
 
                 # mouse motion
-                if event.type == 4:
+                if pygame.event.event_name(event.type) == 'MouseMotion':
                     for square in self.list_squares:
                         if square.is_grabbed():
                             # print('event', event)
@@ -283,27 +304,28 @@ class Fitness:
                             self.has_squares_alive = False
                         # continue
 
+                    #automatic creation lasers
                     if event.key == pygame.K_a:
                         self.list_kill_lines = []
 
-                        if self.automatic_creation_kill_lasers:
-                            self.automatic_creation_kill_lasers = False
+                        if self.automatic_creation_kill_lines:
+                            self.automatic_creation_kill_lines = False
 
                         else:
-                            self.automatic_creation_kill_lasers = True
+                            self.automatic_creation_kill_lines = True
 
+                    #create a new laser
                     if event.key == pygame.K_f:
-                        self.create_kill_laser()
+                        self.create_kill_lines()
 
-            if self.automatic_creation_kill_lasers and len(self.list_kill_lines) == 0:
+            if self.automatic_creation_kill_lines:
                 # chance de um laser ser criado
                 kill_line_born_rate = random.random()
 
                 if kill_line_born_rate <= 0.01:
-                    self.create_kill_laser()
+                    self.create_kill_lines()
 
-
-
+            # percorre a lista de squares
             for index in range(0, len(self.list_squares)):
 
                 if not self.list_squares[index].alive:
@@ -329,12 +351,18 @@ class Fitness:
                         'left': None
                     }
 
+                    distance_lifes = {
+                        'left': 600,
+                        'right': 600,
+                        'top': 300
+                    }
+
                     # objeto mais perto em cada sentido
                     closer_right = closer_bottom = closer_left = closer_top = None
 
-                    for ground in grounds:
+                    square = self.list_squares[index].rect
 
-                        square = self.list_squares[index].rect
+                    for ground in grounds:
 
                         # o quadrado é menor que as paredes, então ele sempre estará
                         # contido em uma parede, os testes abaixo verificam esse caso
@@ -343,28 +371,28 @@ class Fitness:
                         if square.top >= ground.bottom:
                             if abs(square.top - ground.bottom) <= distance_top:
                                 distance_top = abs(square.top - ground.bottom)
-                                closer_top = ground
+                                # closer_top = ground
 
                         if square.bottom <= ground.top:
                             if abs(square.bottom - ground.top) <= distance_bottom:
                                 distance_bottom = abs(square.bottom - ground.top)
-                                closer_bottom = ground
+                                # closer_bottom = ground
 
                         # if square.top > ground.top and square.bottom < ground.bottom:
                         if square.right < ground.left:
                             if abs(square.right - ground.left) <= distance_right:
                                 distance_right = abs(square.right - ground.left)
-                                closer_right = ground
+                                # closer_right = ground
 
                         if square.left > ground.right:
                             if abs(square.left - ground.right) <= distance_left:
                                 distance_left = abs(square.left - ground.right)
-                                closer_left = ground
+                                # closer_left = ground
+
+                    array_grounds = distance_right, distance_bottom, distance_left, distance_top
 
                     # distancia do laser mais perto
                     for kill_line in self.list_kill_lines:
-
-                        square = self.list_squares[index].rect
 
                         # if square.top > kill_line.rect.top and square.bottom < kill_line.rect.bottom:
                         if square.right < kill_line.rect.left:
@@ -377,20 +405,36 @@ class Fitness:
                                 distance_enemies['left'] = abs(square.left - kill_line.rect.right)
                                 closer_enemies['left'] = kill_line.rect
 
-                    array_grounds = distance_right, distance_bottom, distance_left, distance_top
-
                     array_enemies = distance_enemies['right'], distance_enemies['left']
 
-                    input_array = array_grounds + array_enemies
+                    # distancia ate a vida
+                    for life in lifes:
+
+                        if square.left >= life.right:
+                            distance_lifes['left'] = abs(square.left - life.right)
+                            closer_left = life
+
+                        if square.right <= life.left:
+                            distance_lifes['right'] = abs(square.right - life.left)
+                            closer_right = life
+
+                        if square.top >= life.bottom:
+                            distance_lifes['top'] = abs(square.top - life.bottom)
+                            closer_top = life
+
+                    array_lifes = distance_lifes['left'], distance_lifes['right'], distance_lifes['top']
+
+                    input_array = array_grounds + array_enemies + array_lifes
 
                     output = neural_network.feed_forward(self.list_squares[index].weights, input_array)
 
                     action = np.argmax(output)
 
-                    # 0 direita
-                    # 1 baixo
-                    # 2 esquerda
-                    # 3 pular
+                    # 0 parado
+                    # 1 direita
+                    # 2 baixo
+                    # 3 esquerda
+                    # 4 pular
 
                     pos_x = pos_y = 0
 
@@ -470,48 +514,47 @@ class Fitness:
                             self.list_squares[index].rect.top = ground.bottom
                             pos_y = 0
 
-                    # not grabbed
-                    if not self.list_squares[index].is_grabbed():
-                        self.list_squares[index].rect.move_ip(pos_x, pos_y)
+                    for life in lifes:
+                        if self.list_squares[index].rect.colliderect(life):
+                            self.list_squares[index].energy = 100
 
-                    '''x1, y1 = self.list_squares[index].rect.center
+                    # not grabbed
+                    # if not self.list_squares[index].is_grabbed():
+                    self.list_squares[index].rect.move_ip(int(math.floor(pos_x)), int(math.floor(pos_y)))
+
+                    x1, y1 = self.list_squares[index].rect.center
 
                     if closer_right is not None:
                         r_x2, r_y2 = closer_right.center
-                        pygame.draw.line(screen, GREEN, (x1, y1), (r_x2, r_y2), 1)
+                        dirty.append(pygame.draw.line(screen, GREEN, (x1, y1), (r_x2, r_y2), 1))
 
-                    if closer_bottom is not None:
-                        b_x2, b_y2 = closer_bottom.center
-                        pygame.draw.line(screen, GREEN, (x1, y1), (b_x2, b_y2), 1)
+                    # if closer_bottom is not None:
+                    #     b_x2, b_y2 = closer_bottom.center
+                    #     pygame.draw.line(screen, GREEN, (x1, y1), (b_x2, b_y2), 1)
 
                     if closer_left is not None:
                         l_x2, l_y2 = closer_left.center
-                        pygame.draw.line(screen, GREEN, (x1, y1), (l_x2, l_y2), 1)
+                        dirty.append(pygame.draw.line(screen, GREEN, (x1, y1), (l_x2, l_y2), 1))
 
                     if closer_top is not None:
                         t_x2, t_y2 = closer_top.center
-                        pygame.draw.line(screen, GREEN, (x1, y1), (t_x2, t_y2), 1)
+                        dirty.append(pygame.draw.line(screen, GREEN, (x1, y1), (t_x2, t_y2), 1))
 
-                    if closer_enemies['right'] is not None:
-                        r_x2, r_y2 = closer_enemies['right'].center
-                        pygame.draw.line(screen, RED, (x1, y1), (r_x2, r_y2), 1)
+                    # if closer_enemies['right'] is not None:
+                    #     r_x2, r_y2 = closer_enemies['right'].center
+                    #     pygame.draw.line(screen, RED, (x1, y1), (r_x2, r_y2), 1)
+                    #
+                    # if closer_enemies['left'] is not None:
+                    #     l_x2, l_y2 = closer_enemies['left'].center
+                    #     pygame.draw.line(screen, RED, (x1, y1), (l_x2, l_y2), 1)
 
-                    if closer_enemies['left'] is not None:
-                        l_x2, l_y2 = closer_enemies['left'].center
-                        pygame.draw.line(screen, RED, (x1, y1), (l_x2, l_y2), 1)'''
+                    self.list_squares[index].energy -= dt * 0.01
 
-                    # grabbed
+                # grabbed
                 if self.list_squares[index].is_grabbed() and (drag_position[0] != 0 or drag_position[1] != 0):
                     self.list_squares[index].rect.center = drag_position
 
-                for ground in grounds:
-                    pygame.draw.rect(screen, WHITE, ground)
-
-                for platform in platforms:
-                    pygame.draw.rect(screen, WHITE, platform)
-
                 for border in borders:
-                    pygame.draw.rect(screen, RED, border)
 
                     if self.list_squares[index].rect.colliderect(border):
                         # print('bateu')
@@ -521,12 +564,20 @@ class Fitness:
                         if pos_x < 0:
                             self.list_squares[index].rect.left = border.right
 
-                # pygame.draw.rect(screen, GREEN, exit)
-
                 # colisao com os lasers
                 for kill_line in self.list_kill_lines:
                     if self.list_squares[index].rect.colliderect(kill_line.rect):
                         self.list_squares[index].alive = False
+
+                # saiu da tela
+                if self.list_squares[index].rect.top > window[1] \
+                        or self.list_squares[index].rect.left > window[0] \
+                        or self.list_squares[index].rect.right < 0:
+                    self.list_squares[index].alive = False
+
+                # sem energia
+                if self.list_squares[index].energy <= 0:
+                    self.list_squares[index].alive = False
 
                 # tempo de vida do individuo
                 if self.list_squares[index].alive is False:
@@ -535,18 +586,19 @@ class Fitness:
 
                 # results.incrementWinners(1)
 
-                pygame.draw.rect(screen, self.list_squares[index].color, self.list_squares[index].rect)
-
-            for kill_line in self.list_kill_lines:
-                kl_pos_x = dt * kill_line.velocity
-                if kill_line.direction == 'to_left':
+            for kill_line_index in range(len(self.list_kill_lines)):
+                kl_pos_x = dt * self.list_kill_lines[kill_line_index].velocity
+                if self.list_kill_lines[kill_line_index].direction == 'to_left':
                     kl_pos_x = kl_pos_x * -1
 
-                kill_line.rect.move_ip(kl_pos_x, 0)
-                pygame.draw.rect(screen, kill_line.color, kill_line.rect)
+                self.list_kill_lines[kill_line_index].rect.move_ip(int(math.floor(kl_pos_x)), 0)
 
-                if (kill_line.direction == 'to_left' and kill_line.rect.left <= 0) or (kill_line.direction == 'to_right' and kill_line.rect.right >= WIDTH):
-                    self.list_kill_lines = []
+                # if (self.list_kill_lines[kill_line_index].direction == 'to_left'
+                #     and self.list_kill_lines[kill_line_index].rect.left <= 0) \
+                #         or (self.list_kill_lines[kill_line_index].direction == 'to_right'
+                #             and self.list_kill_lines[kill_line_index].rect.right >= WIDTH):
+
+                    # del self.list_kill_lines[kill_line_index]
 
             alives = 0
 
@@ -556,20 +608,40 @@ class Fitness:
 
             if alives == 0:
                 self.has_squares_alive = False
+                self.list_kill_lines = []
+
+            for ground in grounds:
+                dirty.append(pygame.draw.rect(screen, WHITE, ground))
+
+            for platform in platforms:
+                dirty.append(pygame.draw.rect(screen, WHITE, platform))
+
+            for border in borders:
+                dirty.append(pygame.draw.rect(screen, RED, border))
+
+            for life in lifes:
+                dirty.append(pygame.draw.rect(screen, GREEN, life))
+
+            for kill_line in self.list_kill_lines:
+                dirty.append(pygame.draw.rect(screen, kill_line.color, kill_line.rect))
+
+            for square in self.list_squares:
+                if square.alive:
+                    dirty.append(pygame.draw.rect(screen, square.color, square.rect))
 
             generations_text = 'geracao: ' + str(results.generations)
             generations_font = font.render(generations_text, True, WHITE)
             generations_rect = generations_font.get_rect()
             generations_rect.center = (80, 60)
 
-            screen.blit(generations_font, generations_rect)
+            dirty.append(screen.blit(generations_font, generations_rect))
 
             alives_text = 'vivos: ' + str(alives)
             alives_font = font.render(alives_text, True, WHITE)
             alives_rect = alives_font.get_rect()
             alives_rect.center = (80, 80)
 
-            screen.blit(alives_font, alives_rect)
+            dirty.append(screen.blit(alives_font, alives_rect))
 
             # winners_text = 'vencedores: ' + str(results.getWinners())
             # winners_font = font.render(winners_text, True, WHITE)
@@ -584,7 +656,7 @@ class Fitness:
             # rasteira_rect_b.move_ip(-(dt * kill_line_velocity), 0)
             # screen.blit(rasteira_resized_b, rasteira_rect_b)
 
-            pygame.display.flip()
+            pygame.display.update(dirty)
 
         return True
 
@@ -592,23 +664,56 @@ class Fitness:
 
         self.run_game_rules()
 
-        # print('bestDistance', self.bestDistance)
-
         for index in range(0, len(self.list_squares)):
             time_alive = self.list_squares[index].time_alive
+            energy = self.list_squares[index].energy
 
             #count_jumpings = self.list_squares[index].count_jumpings
 
             fitness = 1
 
             if time_alive > 0:
-                fitness = 1 / time_alive
+                fitness = 1 / (time_alive + energy)
 
             # print('fitness', fitness)
 
             self.fitness_results[index] = fitness
 
+        print('self.fitness_results', self.fitness_results)
+
         return self.fitness_results
+
+
+def save_weights(filename, population):
+    weights = np.array([])
+
+    for ind in population:
+        for bias in ind:
+            weights = np.array(np.append(weights, bias))
+
+    np.savetxt(filename, weights)
+
+
+def parse_population(new_data, input_size, hidden_size, output_size):
+    n1_end = input_size * hidden_size
+    n2_start = input_size * hidden_size
+    n2_end = (input_size + hidden_size) * hidden_size
+    n3_start = (input_size + hidden_size) * hidden_size
+
+    population = []
+
+    for ind in new_data:
+        n1 = ind[:n1_end]
+        n2 = ind[n2_start:n2_end]
+        n3 = ind[n3_start:]
+
+        new_array = [np.split(n1, input_size),
+                     np.split(n2, hidden_size),
+                     np.split(n3, hidden_size)]
+
+        population.append(new_array)
+
+    return population
 
 
 class GeneticAlgorithm:
@@ -621,10 +726,21 @@ class GeneticAlgorithm:
         self.fitness = fitness
 
     def start(self):
-        input_size = 6
-        hidden_size = 10
+        input_size = 9
+        hidden_size = 18
         output_size = 5  # parado, pular, direita, esquerda, baixo
-        self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
+
+        load_weights = True
+
+        if load_weights:
+            data = np.loadtxt('data_weights.csv')
+
+            new_data = np.split(data, self.population_size)
+
+            self.current_population = parse_population(new_data, input_size, hidden_size, output_size)
+
+        else:
+            self.current_population = initial_population(self.population_size, input_size, hidden_size, output_size)
 
         for i in range(0, self.generations):
             print('generation: ', i)
@@ -635,6 +751,11 @@ class GeneticAlgorithm:
                                                       self.fitness
                                                       )
 
+            is_to_save_weights = True
 
-ga = GeneticAlgorithm(population_size=50, elite_size=0, mutation_rate=0.02, generations=500, fitness=Fitness)
+            if is_to_save_weights:
+                save_weights('data_weights.csv', self.current_population)
+
+
+ga = GeneticAlgorithm(population_size=50, elite_size=5, mutation_rate=0.01, generations=1000, fitness=Fitness)
 ga.start()
