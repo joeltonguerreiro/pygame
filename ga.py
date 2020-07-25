@@ -1,4 +1,3 @@
-import json
 import operator
 import random
 
@@ -35,19 +34,18 @@ def rank_individuals(population, fitness):
 def selection(population_ranked, elite_size):
 
     selection_results = []
-    df = pd.DataFrame(np.array(population_ranked), columns=["Index", "Fitness"])
-    df['cum_sum'] = df.Fitness.cumsum()
-    df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
 
     for i in range(0, elite_size):
         selection_results.append(population_ranked[i][0])
         del population_ranked[i]
 
+    df = pd.DataFrame(np.array(population_ranked), columns=["Index", "Fitness"])
+    df['cum_sum'] = df.Fitness.cumsum()
+    df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
+
     top_percent = int(len(population_ranked) * 0.3)
 
     firsts = population_ranked[:top_percent]
-
-    print('firsts', firsts)
 
     length = len(firsts)
 
@@ -56,8 +54,9 @@ def selection(population_ranked, elite_size):
 
         for j in range(0, length):
             if pick <= df.iat[j, 3]:
-                selection_results.append(population_ranked[j][0])
-                break
+                if population_ranked[j][0] not in selection_results:
+                    selection_results.append(population_ranked[j][0])
+                    break
 
     return selection_results
 
@@ -123,7 +122,9 @@ def breed_population(matingpool, elite_size, current_generation):
         index2 = random.randint(0, len(pool) - 1)
         parent1 = pool[index1]
         parent2 = pool[index2]
+
         child = breed(parent1, parent2)
+
         children.append(child)
 
     return children
@@ -131,19 +132,39 @@ def breed_population(matingpool, elite_size, current_generation):
 
 def mutate(individual, mutation_rate):
     for i in np.arange(len(individual)):
-        # print('mutate weight', i)
         for neuron in range(len(individual[i])):
             if random.random() < mutation_rate:
                 new_weight = []
+
                 for j in range(len(individual[i][neuron])):
                     new_weight.append(random.uniform(-1., 1))
-                    # print('neuronio', individual[i][neuron])
 
-                #print('mutacao', new_weight)
-
+                # print('mutacao', len(new_weight))
                 individual[i][neuron] = new_weight
 
     return individual
+
+
+'''def mutate(individual, mutation_rate):
+    i = 1
+    for neuron in range(len(individual[i])):
+        if random.random() < mutation_rate:
+            new_weight = []
+
+            n1 = random.randint(0, len(individual[i][neuron]) - 1)
+            n2 = random.randint(0, len(individual[i][neuron]) - 1)
+
+            for j in range(len(individual[i][neuron])):
+                if j == n1:
+                    new_weight.append(individual[i][neuron][n2])
+                elif j == n2:
+                    new_weight.append(individual[i][neuron][n1])
+                else:
+                    new_weight.append(random.uniform(-1., 1))
+
+            individual[i][neuron] = new_weight
+
+    return individual'''
 
 
 def mutate_population(population, mutation_rate):

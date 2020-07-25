@@ -28,7 +28,8 @@ gravity = 0.1
 velocity_jumping = 0.3
 max_height_jumping = 40
 
-pygame.init()
+pygame.display.init()
+pygame.font.init()
 
 screen = pygame.display.set_mode(window)
 background = pygame.Surface(window)
@@ -40,7 +41,6 @@ font = pygame.font.Font('freesansbold.ttf', 12)
 levels = [
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     "B                            B",
-    "B            I               B",
     "B                            B",
     "B                            B",
     "B                            B",
@@ -48,9 +48,10 @@ levels = [
     "B                            B",
     "B                            B",
     "B                            B",
-    "B              L             B",
-    "B                GGGGGG      B",
     "B                            B",
+    "B                            B",
+    "BG                          GB",
+    "BL          I               LB",
     "BGGGGGGGGGGGGGGGGGGGGGGGGGGGGB",
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 ]
@@ -65,9 +66,9 @@ lifes = []
 exit = 0
 pos_init = (0, 0)
 
-#rasteira = pygame.image.load('rasteira.png')
-#rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
-#rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
+# rasteira = pygame.image.load('rasteira.png')
+# rasteira_resized = pygame.transform.scale(rasteira, (40, 40))
+# rasteira_resized_b = pygame.transform.flip(rasteira_resized, True, False)
 
 # I = initial position
 # P = plataform
@@ -109,13 +110,13 @@ for row in levels:
 
 class Square:
     def __init__(self, weights, rect, color):
-        self.weights = weights # pesos bias
+        self.weights = weights  # pesos bias
         self.rect = rect
         self.color = color
         self.jumping = True
         self.jumping_height = 1
         self.grabbed = False
-        self.max_jumping_height = 40
+        self.max_jumping_height = 60
         self.alive = True
         self.time_alive = 0
         self.jump_cooldown = 1000
@@ -123,6 +124,8 @@ class Square:
         self.count_jumpings = 0
         self.velocity = 0.16
         self.energy = 100
+        self.last_recover_energy = 0
+        self.recover_energy_cooldown = 1000
 
     def is_jumping(self):
         return self.jumping is True
@@ -151,6 +154,15 @@ class Square:
 
     def increments_jump(self):
         self.count_jumpings += 1
+
+    def recover_energy(self):
+        now = int(round(time.time() * 1000))
+
+        if (now - self.last_recover_energy) >= self.recover_energy_cooldown:
+            self.energy += 100
+            self.last_recover_energy = int(round(time.time() * 1000))
+
+
 
 
 neural_network = NeuralNetwork()
@@ -197,7 +209,7 @@ class Fitness:
 
     def create_kill_lines(self):
         kl_width = random.randint(3, 6)
-        kl_height = random.randint(20, 60)
+        kl_height = random.randint(10, 20)
         kill_line_y = 260 - kl_height
 
         kill_line_direction = 'to_left'
@@ -241,10 +253,10 @@ class Fitness:
 
             pygame.display.set_caption('FPS: {}'.format(clock.get_fps()))
 
-            #if rasteira_rect.centerx >= 600:
+            # if rasteira_rect.centerx >= 600:
             #    rasteira_rect.centerx = 0
 
-            #if rasteira_rect_b.centerx <= 0:
+            # if rasteira_rect_b.centerx <= 0:
             #    rasteira_rect_b.centerx = 600
 
             dirty = []
@@ -304,7 +316,7 @@ class Fitness:
                             self.has_squares_alive = False
                         # continue
 
-                    #automatic creation lasers
+                    # automatic creation lasers
                     if event.key == pygame.K_a:
                         self.list_kill_lines = []
 
@@ -314,7 +326,7 @@ class Fitness:
                         else:
                             self.automatic_creation_kill_lines = True
 
-                    #create a new laser
+                    # create a new laser
                     if event.key == pygame.K_f:
                         self.create_kill_lines()
 
@@ -354,7 +366,8 @@ class Fitness:
                     distance_lifes = {
                         'left': 600,
                         'right': 600,
-                        'top': 300
+                        'top': 300,
+                        'bottom': 300
                     }
 
                     # objeto mais perto em cada sentido
@@ -422,19 +435,31 @@ class Fitness:
                             distance_lifes['top'] = abs(square.top - life.bottom)
                             closer_top = life
 
-                    array_lifes = distance_lifes['left'], distance_lifes['right'], distance_lifes['top']
+                        if square.bottom <= life.top:
+                            distance_lifes['bottom'] = abs(square.bottom - life.top)
+                            closer_bottom = life
+
+                    array_lifes = distance_lifes['left'], distance_lifes['right'], distance_lifes['top'], distance_lifes['bottom']
 
                     input_array = array_grounds + array_enemies + array_lifes
 
+                    # input_array += tuple([self.list_squares[index].energy])
+                    #
+                    # if index == 0:
+                    #     print('input_array', input_array)
+
                     output = neural_network.feed_forward(self.list_squares[index].weights, input_array)
+
+                    # if index == 0:
+                    #     print('input', input_array)
+                    #     print('output', output)
 
                     action = np.argmax(output)
 
                     # 0 parado
                     # 1 direita
-                    # 2 baixo
-                    # 3 esquerda
-                    # 4 pular
+                    # 2 esquerda
+                    # 3 pular
 
                     pos_x = pos_y = 0
 
@@ -447,16 +472,15 @@ class Fitness:
                         pos_x = (velocity * dt)
                         closer_ground_distance = 300
                         closer_ground = None
+                        self.list_squares[index].energy -= 0.1
 
                     if action == 2:
-                        pos_y = (velocity * dt)
-
-                    if action == 3:
                         pos_x = -(velocity * dt)
                         closer_ground_distance = 300
                         closer_ground = None
+                        self.list_squares[index].energy -= 0.1
 
-                    if action == 4:
+                    if action == 3:
                         if self.list_squares[index].can_jump():
                             self.list_squares[index].jump()
                             pos_y = -(velocity_jumping * dt)
@@ -465,6 +489,7 @@ class Fitness:
                             closer_ground = None
                             self.list_squares[index].jumping = True
                             self.list_squares[index].jumping_height += abs((velocity_jumping * dt))
+                            self.list_squares[index].energy -= 0.5
 
                     for ground in grounds:
 
@@ -516,7 +541,7 @@ class Fitness:
 
                     for life in lifes:
                         if self.list_squares[index].rect.colliderect(life):
-                            self.list_squares[index].energy = 100
+                            self.list_squares[index].recover_energy()
 
                     # not grabbed
                     # if not self.list_squares[index].is_grabbed():
@@ -528,9 +553,9 @@ class Fitness:
                         r_x2, r_y2 = closer_right.center
                         dirty.append(pygame.draw.line(screen, GREEN, (x1, y1), (r_x2, r_y2), 1))
 
-                    # if closer_bottom is not None:
-                    #     b_x2, b_y2 = closer_bottom.center
-                    #     pygame.draw.line(screen, GREEN, (x1, y1), (b_x2, b_y2), 1)
+                    if closer_bottom is not None:
+                        b_x2, b_y2 = closer_bottom.center
+                        dirty.append(pygame.draw.line(screen, GREEN, (x1, y1), (b_x2, b_y2), 1))
 
                     if closer_left is not None:
                         l_x2, l_y2 = closer_left.center
@@ -598,7 +623,7 @@ class Fitness:
                 #         or (self.list_kill_lines[kill_line_index].direction == 'to_right'
                 #             and self.list_kill_lines[kill_line_index].rect.right >= WIDTH):
 
-                    # del self.list_kill_lines[kill_line_index]
+                # del self.list_kill_lines[kill_line_index]
 
             alives = 0
 
@@ -668,7 +693,7 @@ class Fitness:
             time_alive = self.list_squares[index].time_alive
             energy = self.list_squares[index].energy
 
-            #count_jumpings = self.list_squares[index].count_jumpings
+            # count_jumpings = self.list_squares[index].count_jumpings
 
             fitness = 1
 
@@ -726,15 +751,21 @@ class GeneticAlgorithm:
         self.fitness = fitness
 
     def start(self):
-        input_size = 9
-        hidden_size = 18
-        output_size = 5  # parado, pular, direita, esquerda, baixo
+        input_size = 10
+        hidden_size = 36
+        output_size = 4  # parado, pular, direita, esquerda
 
         load_weights = True
 
-        if load_weights:
-            data = np.loadtxt('data_weights.csv')
+        data = []
 
+        try:
+            data = np.loadtxt('data_weights.csv')
+        except:
+            load_weights = False
+            print('arquivo não encontrado')
+
+        if load_weights:
             new_data = np.split(data, self.population_size)
 
             self.current_population = parse_population(new_data, input_size, hidden_size, output_size)
